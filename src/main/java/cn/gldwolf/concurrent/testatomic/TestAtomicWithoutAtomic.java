@@ -1,5 +1,12 @@
 package cn.gldwolf.concurrent.testatomic;
 
+import cn.gldwolf.concurrent.threadpool.ThreadPoolUtils;
+import cn.gldwolf.concurrent.threadpool.threadfactory.MyThreadFactory;
+
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+
 /**
  * 如下的代码在当前测试环境下：(i7-4800MQ，JDK11，Linux(Arch)) ，控制台的输出，查找期望的 serialNumber 的最大值 999，
  * 在运行多次的情况下，证明，没有得到期望的最大值 999，可见，在不加锁的情况下，不能保证 serialNumber++ 操作的原子性！
@@ -17,9 +24,11 @@ package cn.gldwolf.concurrent.testatomic;
 public class TestAtomicWithoutAtomic {
     public static void main(String[] args) {
         AtomicDemoWithoutAtomic adwa = new AtomicDemoWithoutAtomic();
+        final ThreadPoolExecutor executors = ThreadPoolUtils.getExecutors(1000, "TestAtomicWithoutAtomic");
         for (int i = 0; i < 1000; i++) {
-            new Thread(adwa, "thread-" + i).start();
+            executors.execute(adwa);
         }
+        executors.shutdown();
     }
 }
 
