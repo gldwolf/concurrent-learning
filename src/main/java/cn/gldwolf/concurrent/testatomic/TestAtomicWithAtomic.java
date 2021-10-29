@@ -39,11 +39,21 @@ import java.util.concurrent.atomic.AtomicInteger;
  *         <strong>由于 CAS 指令是一条指令，不可拆分，所以保证了这个操作是原子性的</strong>
  *     </ul>
  * </ol>
- * <strong>一个简单的说明失败的情况如何进行更新操作：</strong>
+ * <strong>失败的情况如何进行更新操作：</strong>
  * 假设在第一次读取到的期望原值为 1，进行 +1 操作，得到新值 2，此时进行 CAS 操作，执行 lock cmpxchg 指令(lock 期间的写操作会回写已修改的数据到主内存，同时通过缓存一致性协议让其它 CPU 相关缓存行失效)，
  * 此时其它 CPU core 应该是不能再操作此块内存，得到内存中的现值为 3，与期望原值不符，所以此次更新操作失败，
  * 则再重新读取期望原值假使为 4(因为可能其它线程又更新了内存中的现值)，对 4 进行 +1 操作，得到新值为 5，
  * 此时再次进行 CAS 操作，读取内存中的现值仍为 4，与期望原值相同，则将内存中的现值更新为 5。此时本次更新操作完成(即对目标变量进行了正确的 +1 操作，保证了原子性)！
+ * <br/><br/>
+ * <strong>CAS 的三大问题：</strong>
+ * <ol>
+ *     <li><strong>ABA 问题：</strong>ABA 问题简单的说就是如果一个值原来是 A，变成了 B，又变成了 A，那么在 CAS 时是感知不到这个变化过程的，但是实际是可能发生了变化，
+ *     即是无状态的。该问题的解决思路就是在变量前面加上版本号，每次变量更新的时候把版本号 +1，那么 A-B-A 就会变成 1A-2B-3A。即可在比较的时候确定是否发生过变化，以做出相应的响应。</li>
+ *     <li><strong>循环时间长开销大：</strong>自旋 CAS 如果长时候不成功，会造成很大的 CPU 开销。如果 JVM 支持处理器的 pause 指令，那么效率有一定的提升，
+ *     pause 指令有两个作用：1. 延迟流水线指令执行(de-pipeline) 2. 可以避免在退出循环时因内存顺序冲突(memory order violation)而引起 CPU 流水线被清空(CPU pipeline flush)，从而提高 CPU 的执行效率</li>
+ *     <li><strong>只能保证一个共享变量的原子操作：</strong>当对多个共享变量进行操作时 CAS 是无法保证原子性的，因为 lock cmpxchg 一次只能对一个变量进行 CAS，这时就需要用锁，或者当多个共享变量合并成一个共享变量来操作。
+ *     {@link java.util.concurrent.atomic.AtomicReference AtomicReference} 类保证引用对象的原子性，可以把多个共享变量放在一个对象里进行 CAS 操作</li>
+ * </ol>
  *
  * @author gldwolf
  */
@@ -67,6 +77,7 @@ class AtomicDemoWithAtomic implements Runnable {
     }
 
     public int getSerialNumber() {
+        // 可以追进源码看一下具体的操作
         return serialNumber.getAndIncrement();
     }
 }
